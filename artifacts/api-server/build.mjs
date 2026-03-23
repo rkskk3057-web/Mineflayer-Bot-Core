@@ -29,6 +29,26 @@ async function buildAll() {
     // - use path traversal to read files (e.g. @google-cloud/secret-manager loads sibling .proto files)
     external: [
       "*.node",
+      // Minecraft/game packages - too large to bundle and use native modules
+      "mineflayer",
+      "mineflayer-pathfinder",
+      "prismarine-*",
+      "minecraft-data",
+      "vec3",
+      "nbt",
+      "node-minecraft-protocol",
+      "level",
+      "abstract-leveldown",
+      "levelup",
+      "classic-level",
+      "socket.io",
+      "socket.io-adapter",
+      "socket.io-parser",
+      "engine.io",
+      // DB and other large packages
+      "pg",
+      "pg-pool",
+      "drizzle-orm",
       "sharp",
       "better-sqlite3",
       "sqlite3",

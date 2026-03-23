@@ -1,0 +1,17 @@
+packages:
+  "socket.io-client": "Real-time communication with backend"
+  "framer-motion": "Animations and page transitions"
+  "date-fns": "Formatting log timestamps"
+  "react-hook-form": "Form state management"
+  "@hookform/resolvers": "Zod resolver for forms"
+  "zod": "Schema validation for forms"
+  "lucide-react": "Icons"
+
+images:
+  - path: "artifacts/mc-bot-dashboard/public/images/cyber-bg.png"
+    description: "Abstract cyber glowing grid background with neon green and dark deep colors, high tech, futuristic, low opacity"
+    aspect_ratio: "16:9"
+
+notes:
+  - "Assumes backend serves Socket.IO on the same path as the frontend origin"
+  - "API client hooks imported from @workspace/api-client-react"

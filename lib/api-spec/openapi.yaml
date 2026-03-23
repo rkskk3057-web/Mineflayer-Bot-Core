@@ -1,22 +1,28 @@
 openapi: 3.1.0
 info:
-  # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: Minecraft Bot API
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: bot
+    description: Bot management
+  - name: settings
+    description: Settings management
+  - name: tasks
+    description: Task queue
+  - name: servers
+    description: Server config management
 paths:
   /healthz:
     get:
       operationId: healthCheck
       tags: [health]
       summary: Health check
-      description: Returns server health status
       responses:
         "200":
           description: Healthy
@@ -24,6 +30,292 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  /bot/status:
+    get:
+      operationId: getBotStatus
+      tags: [bot]
+      summary: Get current bot status
+      responses:
+        "200":
+          description: Bot status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BotStatus"
+
+  /bot/connect:
+    post:
+      operationId: connectBot
+      tags: [bot]
+      summary: Connect bot to server
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ConnectRequest"
+      responses:
+        "200":
+          description: Connection initiated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ActionResponse"
+
+  /bot/disconnect:
+    post:
+      operationId: disconnectBot
+      tags: [bot]
+      summary: Disconnect bot
+      responses:
+        "200":
+          description: Disconnected
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ActionResponse"
+
+  /bot/reconnect:
+    post:
+      operationId: reconnectBot
+      tags: [bot]
+      summary: Reconnect bot
+      responses:
+        "200":
+          description: Reconnecting
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ActionResponse"
+
+  /bot/command:
+    post:
+      operationId: sendBotCommand
+      tags: [bot]
+      summary: Send a command to the bot
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CommandRequest"
+      responses:
+        "200":
+          description: Command sent
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ActionResponse"
+
+  /bot/logs:
+    get:
+      operationId: getBotLogs
+      tags: [bot]
+      summary: Get recent bot logs
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Logs
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LogsResponse"
+
+  /settings:
+    get:
+      operationId: getSettings
+      tags: [settings]
+      summary: Get current bot settings
+      responses:
+        "200":
+          description: Settings
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BotSettings"
+    put:
+      operationId: updateSettings
+      tags: [settings]
+      summary: Update bot settings
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BotSettings"
+      responses:
+        "200":
+          description: Updated settings
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BotSettings"
+
+  /settings/whitelist:
+    get:
+      operationId: getWhitelist
+      tags: [settings]
+      summary: Get whitelist
+      responses:
+        "200":
+          description: Whitelist
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WhitelistResponse"
+    post:
+      operationId: addToWhitelist
+      tags: [settings]
+      summary: Add player to whitelist
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WhitelistEntry"
+      responses:
+        "200":
+          description: Added
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ActionResponse"
+
+  /settings/whitelist/{username}:
+    delete:
+      operationId: removeFromWhitelist
+      tags: [settings]
+      summary: Remove player from whitelist
+      parameters:
+        - name: username
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Removed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ActionResponse"
+
+  /tasks:
+    get:
+      operationId: getTasks
+      tags: [tasks]
+      summary: Get task queue
+      responses:
+        "200":
+          description: Tasks
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TaskQueueResponse"
+    post:
+      operationId: addTask
+      tags: [tasks]
+      summary: Add task to queue
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateTaskRequest"
+      responses:
+        "200":
+          description: Task added
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ActionResponse"
+
+  /tasks/{taskId}:
+    delete:
+      operationId: removeTask
+      tags: [tasks]
+      summary: Remove task from queue
+      parameters:
+        - name: taskId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Removed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ActionResponse"
+
+  /tasks/clear:
+    post:
+      operationId: clearTasks
+      tags: [tasks]
+      summary: Clear all tasks
+      responses:
+        "200":
+          description: Cleared
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ActionResponse"
+
+  /servers:
+    get:
+      operationId: getServerConfigs
+      tags: [servers]
+      summary: Get saved server configs
+      responses:
+        "200":
+          description: Server configs
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ServerConfigsResponse"
+    post:
+      operationId: saveServerConfig
+      tags: [servers]
+      summary: Save a server config
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ServerConfig"
+      responses:
+        "200":
+          description: Saved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ActionResponse"
+
+  /servers/{configId}:
+    delete:
+      operationId: deleteServerConfig
+      tags: [servers]
+      summary: Delete a server config
+      parameters:
+        - name: configId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ActionResponse"
+
 components:
   schemas:
     HealthStatus:
@@ -31,6 +323,227 @@ components:
       properties:
         status:
           type: string
-      required:
-        - status
+      required: [status]
 
+    BotStatus:
+      type: object
+      properties:
+        connected:
+          type: boolean
+        state:
+          type: string
+          enum: [IDLE, FOLLOW, GUARD, COMBAT, AUTONOMOUS, DISCONNECTED]
+        health:
+          type: number
+        food:
+          type: number
+        ping:
+          type: number
+        username:
+          type: string
+        serverHost:
+          type: string
+        serverPort:
+          type: integer
+        nearbyPlayers:
+          type: integer
+        currentTarget:
+          type: string
+          nullable: true
+        ownerOnline:
+          type: boolean
+        cpuMode:
+          type: string
+          enum: [LOW, NORMAL, HIGH]
+        autonomousMode:
+          type: boolean
+        uptime:
+          type: integer
+      required:
+        - connected
+        - state
+        - health
+        - food
+        - ping
+        - username
+        - serverHost
+        - serverPort
+        - nearbyPlayers
+        - currentTarget
+        - ownerOnline
+        - cpuMode
+        - autonomousMode
+        - uptime
+
+    ConnectRequest:
+      type: object
+      properties:
+        host:
+          type: string
+        port:
+          type: integer
+        username:
+          type: string
+        owner:
+          type: string
+      required: [host, port, username, owner]
+
+    CommandRequest:
+      type: object
+      properties:
+        command:
+          type: string
+          enum:
+            - follow
+            - guard
+            - stop
+            - attack_nearest
+            - toggle_autonomous
+            - set_owner
+        value:
+          type: string
+          nullable: true
+      required: [command]
+
+    BotSettings:
+      type: object
+      properties:
+        followDistance:
+          type: number
+        detectionRadius:
+          type: number
+        aggressionLevel:
+          type: number
+        attackDelay:
+          type: integer
+        scanInterval:
+          type: integer
+        cpuMode:
+          type: string
+          enum: [LOW, NORMAL, HIGH]
+        autoReconnect:
+          type: boolean
+        reconnectDelay:
+          type: integer
+        owner:
+          type: string
+      required:
+        - followDistance
+        - detectionRadius
+        - aggressionLevel
+        - attackDelay
+        - scanInterval
+        - cpuMode
+        - autoReconnect
+        - reconnectDelay
+        - owner
+
+    ActionResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+      required: [success, message]
+
+    LogEntry:
+      type: object
+      properties:
+        id:
+          type: string
+        timestamp:
+          type: string
+        level:
+          type: string
+          enum: [info, warn, error, combat, state, connection]
+        message:
+          type: string
+      required: [id, timestamp, level, message]
+
+    LogsResponse:
+      type: object
+      properties:
+        logs:
+          type: array
+          items:
+            $ref: "#/components/schemas/LogEntry"
+      required: [logs]
+
+    WhitelistEntry:
+      type: object
+      properties:
+        username:
+          type: string
+      required: [username]
+
+    WhitelistResponse:
+      type: object
+      properties:
+        whitelist:
+          type: array
+          items:
+            type: string
+      required: [whitelist]
+
+    BotTask:
+      type: object
+      properties:
+        id:
+          type: string
+        type:
+          type: string
+          enum: [follow, guard_area, move_to]
+        status:
+          type: string
+          enum: [pending, active, paused, done]
+        params:
+          type: object
+          additionalProperties: true
+      required: [id, type, status, params]
+
+    CreateTaskRequest:
+      type: object
+      properties:
+        type:
+          type: string
+          enum: [follow, guard_area, move_to]
+        params:
+          type: object
+          additionalProperties: true
+      required: [type, params]
+
+    TaskQueueResponse:
+      type: object
+      properties:
+        tasks:
+          type: array
+          items:
+            $ref: "#/components/schemas/BotTask"
+      required: [tasks]
+
+    ServerConfig:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        host:
+          type: string
+        port:
+          type: integer
+        username:
+          type: string
+        owner:
+          type: string
+      required: [name, host, port, username, owner]
+
+    ServerConfigsResponse:
+      type: object
+      properties:
+        configs:
+          type: array
+          items:
+            $ref: "#/components/schemas/ServerConfig"
+      required: [configs]
