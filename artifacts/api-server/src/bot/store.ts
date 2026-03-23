@@ -1,7 +1,6 @@
 import { defaultSettings } from "./state.js";
-import type { BotSettings, BotTask, ServerConfig, BotState, CpuMode } from "./state.js";
+import type { BotSettings, BotTask, ServerConfig, BotState, CpuMode, BotPosition } from "./state.js";
 
-// In-memory store for bot runtime data
 export const store = {
   // Connection
   connected: false,
@@ -20,6 +19,12 @@ export const store = {
   ownerOnline: false,
   autonomousMode: false,
   startTime: 0,
+
+  // Position
+  position: null as BotPosition | null,
+
+  // Stats
+  kills: 0,
 
   // Settings
   settings: { ...defaultSettings },

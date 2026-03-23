@@ -11,6 +11,8 @@ export interface BotSettings {
   autoReconnect: boolean;
   reconnectDelay: number; // ms
   owner: string;
+  combatEnabled: boolean;
+  autoEat: boolean;
 }
 
 export interface LogEntry {
@@ -36,6 +38,12 @@ export interface ServerConfig {
   owner: string;
 }
 
+export interface BotPosition {
+  x: number;
+  y: number;
+  z: number;
+}
+
 export interface BotStatusData {
   connected: boolean;
   state: BotState;
@@ -51,6 +59,9 @@ export interface BotStatusData {
   cpuMode: CpuMode;
   autonomousMode: boolean;
   uptime: number;
+  position: BotPosition | null;
+  kills: number;
+  combatEnabled: boolean;
 }
 
 export const defaultSettings: BotSettings = {
@@ -63,4 +74,6 @@ export const defaultSettings: BotSettings = {
   autoReconnect: true,
   reconnectDelay: 5000,
   owner: "",
+  combatEnabled: true,
+  autoEat: true,
 };

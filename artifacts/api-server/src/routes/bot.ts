@@ -4,10 +4,11 @@ import {
   disconnect,
   reconnect,
   sendCommand,
+  sendChat,
+  getInventory,
   getCurrentStatus,
 } from "../bot/index.js";
 import { getLogs } from "../bot/logger.js";
-import { store } from "../bot/store.js";
 
 const router: IRouter = Router();
 
@@ -19,17 +20,12 @@ router.get("/bot/status", (_req, res) => {
 // POST /bot/connect
 router.post("/bot/connect", (req, res) => {
   const { host, port, username, owner } = req.body as {
-    host: string;
-    port: number;
-    username: string;
-    owner: string;
+    host: string; port: number; username: string; owner: string;
   };
-
   if (!host || !username) {
     res.status(400).json({ success: false, message: "host and username are required" });
     return;
   }
-
   connect(host, port || 25565, username, owner || "");
   res.json({ success: true, message: `Connecting to ${host}:${port || 25565}` });
 });
@@ -61,6 +57,22 @@ router.post("/bot/command", (req, res) => {
 router.get("/bot/logs", (req, res) => {
   const limit = parseInt(String(req.query.limit)) || 200;
   res.json({ logs: getLogs(limit) });
+});
+
+// POST /bot/chat  — send a message in-game
+router.post("/bot/chat", (req, res) => {
+  const { message } = req.body as { message: string };
+  if (!message || !message.trim()) {
+    res.status(400).json({ success: false, message: "message is required" });
+    return;
+  }
+  const result = sendChat(message.trim());
+  res.json(result);
+});
+
+// GET /bot/inventory
+router.get("/bot/inventory", (_req, res) => {
+  res.json(getInventory());
 });
 
 export default router;

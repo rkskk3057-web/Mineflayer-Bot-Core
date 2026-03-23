@@ -11,6 +11,8 @@ let reconnectTimer: NodeJS.Timeout | null = null;
 let io: IOServer | null = null;
 let statusTimer: NodeJS.Timeout | null = null;
 let pingTimer: NodeJS.Timeout | null = null;
+let positionTimer: NodeJS.Timeout | null = null;
+let eatCooldown = false;
 
 export function setSocketIO(server: IOServer): void {
   io = server;
@@ -38,6 +40,9 @@ function getBotStatusData() {
     uptime: store.connected && store.startTime > 0
       ? Math.floor((Date.now() - store.startTime) / 1000)
       : 0,
+    position: store.position,
+    kills: store.kills,
+    combatEnabled: store.settings.combatEnabled,
   };
 }
 
@@ -51,10 +56,10 @@ function startStatusBroadcast(): void {
 function stopStatusBroadcast(): void {
   if (statusTimer) { clearInterval(statusTimer); statusTimer = null; }
   if (pingTimer) { clearInterval(pingTimer); pingTimer = null; }
+  if (positionTimer) { clearInterval(positionTimer); positionTimer = null; }
 }
 
 export function connect(host: string, port: number, username: string, owner: string): void {
-  // Guard against duplicate connections
   if (store.connecting || store.connected) return;
 
   store.connecting = true;
@@ -62,6 +67,8 @@ export function connect(host: string, port: number, username: string, owner: str
   store.serverPort = port;
   store.username = username;
   store.settings.owner = owner;
+  store.kills = 0;
+  store.position = null;
 
   addLog("connection", `Connecting to ${host}:${port} as ${username}…`);
 
@@ -89,29 +96,34 @@ function setupBotEvents(b: Bot): void {
     store.state = "IDLE";
     store.startTime = Date.now();
 
-    addLog("connection", `Connected! Spawned as ${b.username}`);
+    addLog("connection", `Connected as ${b.username}`);
     if (io) io.emit("bot:connected");
 
-    // Load pathfinder and configure movement capabilities
+    // ─── Load & configure pathfinder (JUMP FIX) ───
     try {
       // eslint-disable-next-line @typescript-eslint/no-require-imports
       const pf = globalThis.require?.("mineflayer-pathfinder");
       if (pf?.pathfinder) {
         b.loadPlugin(pf.pathfinder);
 
-        // Configure movement: allow jumping and climbing
         if (pf.Movements) {
           const movements = new pf.Movements(b);
+          // Allow jumping over 1-block heights and parkour gaps
           movements.canJump = true;
-          movements.canDigStone = false;
-          movements.canDigWood = false;
           movements.allowParkour = true;
           movements.allowSprinting = true;
+          // Don't break blocks during pathfinding
+          movements.canDig = false;
+          // Allow dropping down up to 4 blocks
+          movements.maxDropDown = 4;
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           (b.pathfinder as any).setMovements(movements);
+          // Give pathfinder more time to calculate routes
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          (b.pathfinder as any).thinkTimeout = 8000;
         }
 
-        addLog("info", "Pathfinder loaded with jump + sprint");
+        addLog("info", "Pathfinder ready — jump & sprint enabled");
       }
     } catch {
       addLog("warn", "Pathfinder unavailable — movement disabled");
@@ -119,68 +131,87 @@ function setupBotEvents(b: Bot): void {
 
     startStatusBroadcast();
 
-    // Update ping every 5 seconds (not every physics tick)
+    // Update ping every 5s (not every physics tick)
     pingTimer = setInterval(() => {
       store.ping = b.player?.ping ?? 0;
     }, 5000);
+
+    // Update position every 2s
+    positionTimer = setInterval(() => {
+      if (b.entity?.position) {
+        const p = b.entity.position;
+        store.position = {
+          x: Math.round(p.x * 10) / 10,
+          y: Math.round(p.y * 10) / 10,
+          z: Math.round(p.z * 10) / 10,
+        };
+      }
+    }, 2000);
 
     startAI(b);
     equipBestWeapon(b);
   });
 
+  // ─── Health & auto-eat ───
   b.on("health", () => {
     store.health = b.health ?? 20;
     store.food = b.food ?? 20;
 
-    // Low HP in combat → retreat
+    // Low HP while in combat → retreat
     if ((b.health ?? 20) <= 5 && store.state === "COMBAT") {
       addLog("warn", `Low HP (${(b.health ?? 0).toFixed(1)}) — retreating`);
       forceState("IDLE");
       clearTarget();
     }
+
+    // Auto-eat when food is low
+    if (store.settings.autoEat && !eatCooldown && (b.food ?? 20) <= 14) {
+      tryAutoEat(b);
+    }
   });
 
+  // ─── Kill tracking ───
+  b.on("entityDead", (entity) => {
+    if (!entity || entity === b.entity) return;
+    // Count only entities the bot was targeting or in combat with
+    if (store.state === "COMBAT" || store.currentTarget !== null) {
+      const name = entity.name ?? entity.type ?? "entity";
+      store.kills++;
+      addLog("combat", `Eliminated: ${name} (total kills: ${store.kills})`);
+    }
+  });
+
+  // ─── Owner join/leave ───
   b.on("playerJoined", (player) => {
     const isOwner = player.username === store.settings.owner;
     if (!isOwner) return;
-
     store.ownerOnline = true;
     addLog("info", `Owner ${player.username} joined`);
-
     if (store.state === "AUTONOMOUS") {
       forceState("FOLLOW");
-      addLog("state", "Owner online — switching to FOLLOW");
     }
   });
 
   b.on("playerLeft", (player) => {
     const isOwner = player.username === store.settings.owner;
     if (!isOwner) return;
-
     store.ownerOnline = false;
     addLog("info", `Owner ${player.username} left`);
-
     if (store.state === "FOLLOW") {
-      if (store.autonomousMode) {
-        forceState("AUTONOMOUS");
-        addLog("state", "Owner offline — switching to AUTONOMOUS");
-      } else {
-        forceState("IDLE");
-        addLog("state", "Owner offline — switching to IDLE");
-      }
+      forceState(store.autonomousMode ? "AUTONOMOUS" : "IDLE");
     }
   });
 
+  // ─── Protect owner when hurt ───
   b.on("entityHurt", (entity) => {
     if (!b.entity) return;
 
-    // Bot itself hurt
     if (entity === b.entity) {
-      addLog("combat", `Bot took damage! HP: ${(b.health ?? 0).toFixed(1)}`);
+      addLog("combat", `Bot took damage — HP: ${(b.health ?? 0).toFixed(1)}`);
       return;
     }
 
-    // Owner hurt → engage attacker
+    if (!store.settings.combatEnabled) return;
     const ownerName = store.settings.owner;
     if (!ownerName || store.state === "COMBAT") return;
 
@@ -188,7 +219,6 @@ function setupBotEvents(b: Bot): void {
     if (ownerPlayer?.entity !== entity) return;
 
     addLog("combat", "Owner under attack!");
-    // Small delay to debounce rapid hits
     setTimeout(() => {
       if (store.state === "COMBAT") return;
       const hostile = findNearestHostile(b);
@@ -200,21 +230,21 @@ function setupBotEvents(b: Bot): void {
     }, 300);
   });
 
+  // ─── Chat ───
   b.on("message", (msg) => {
     const text = msg.toString().trim();
     if (!text) return;
-    // Log chat but don't spam every message
     const logEntry = addLog("info", `[Chat] ${text}`);
     if (io) io.emit("bot:log", logEntry);
+    if (io) io.emit("bot:chat", { message: text, timestamp: new Date().toISOString() });
   });
 
   b.on("kicked", (reason) => {
     addLog("connection", `Kicked: ${reason}`);
-    handleDisconnect(`Kicked`);
+    handleDisconnect("Kicked");
   });
 
   b.on("error", (err) => {
-    // Only log meaningful errors
     if (!err.message.includes("ECONNRESET") && !err.message.includes("EPIPE")) {
       addLog("error", `Error: ${err.message}`);
     }
@@ -226,8 +256,33 @@ function setupBotEvents(b: Bot): void {
   });
 }
 
+// ─── Auto-eat ─────────────────────────────────────────────────────────────
+function tryAutoEat(b: Bot): void {
+  const foodItems = new Set([
+    "bread", "cooked_beef", "cooked_chicken", "cooked_porkchop",
+    "cooked_mutton", "cooked_rabbit", "cooked_salmon", "cooked_cod",
+    "golden_apple", "apple", "carrot", "potato", "baked_potato",
+    "beef", "porkchop", "chicken", "mutton", "melon_slice",
+  ]);
+
+  const food = b.inventory.items().find((i) => foodItems.has(i.name));
+  if (!food) return;
+
+  eatCooldown = true;
+  b.equip(food, "hand")
+    .then(() => b.consume())
+    .then(() => {
+      addLog("info", `Auto-ate: ${food.name}`);
+    })
+    .catch(() => { /* silent */ })
+    .finally(() => {
+      setTimeout(() => { eatCooldown = false; }, 3000);
+    });
+}
+
+// ─── Disconnect ───────────────────────────────────────────────────────────
 function handleDisconnect(reason: string): void {
-  if (!store.connected && !store.connecting) return; // already cleaned up
+  if (!store.connected && !store.connecting) return;
 
   store.connected = false;
   store.connecting = false;
@@ -238,6 +293,7 @@ function handleDisconnect(reason: string): void {
   store.nearbyPlayers = 0;
   store.currentTarget = null;
   store.ownerOnline = false;
+  store.position = null;
 
   stopAI();
   clearTarget();
@@ -260,9 +316,7 @@ function handleDisconnect(reason: string): void {
 }
 
 export function disconnect(): void {
-  // Cancel any pending auto-reconnect
   if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; }
-
   stopAI();
   clearTarget();
   stopStatusBroadcast();
@@ -275,6 +329,7 @@ export function disconnect(): void {
   store.connected = false;
   store.connecting = false;
   store.state = "DISCONNECTED";
+  store.position = null;
 
   if (io) io.emit("bot:disconnected", { reason: "manual" });
   addLog("connection", "Disconnected");
@@ -288,6 +343,31 @@ export function reconnect(): void {
   setTimeout(() => connect(serverHost, serverPort, username, owner), 1500);
 }
 
+// ─── Chat ─────────────────────────────────────────────────────────────────
+export function sendChat(message: string): { success: boolean; message: string } {
+  if (!bot || !store.connected) return { success: false, message: "Bot not connected" };
+  try {
+    bot.chat(message);
+    addLog("info", `[Chat sent] ${message}`);
+    return { success: true, message: "Message sent" };
+  } catch {
+    return { success: false, message: "Failed to send chat" };
+  }
+}
+
+// ─── Inventory ────────────────────────────────────────────────────────────
+export function getInventory() {
+  if (!bot || !store.connected) return { items: [] };
+  const items = bot.inventory.items().map((item) => ({
+    name: item.name,
+    displayName: item.displayName,
+    count: item.count,
+    slot: item.slot,
+  }));
+  return { items };
+}
+
+// ─── Weapon equip ─────────────────────────────────────────────────────────
 function equipBestWeapon(b: Bot): void {
   const priority = [
     "netherite_sword", "diamond_sword", "iron_sword", "stone_sword", "wooden_sword",
@@ -303,11 +383,11 @@ function equipBestWeapon(b: Bot): void {
   }
 }
 
+// ─── Exports ──────────────────────────────────────────────────────────────
 export function getCurrentStatus() {
   return getBotStatusData();
 }
 
-// Force a state change bypassing cooldown — for system-level transitions
 export function forceState(state: BotState): void {
   const prev = store.state;
   store.state = state;
@@ -317,15 +397,12 @@ export function forceState(state: BotState): void {
   }
 }
 
-// For dashboard commands — uses the same export name as before
 export function setState(state: BotState): void {
   forceState(state);
 }
 
 export function sendCommand(command: string, value?: string): { success: boolean; message: string } {
-  if (!store.connected) {
-    return { success: false, message: "Bot is not connected" };
-  }
+  if (!store.connected) return { success: false, message: "Bot is not connected" };
 
   switch (command) {
     case "follow":
@@ -340,15 +417,13 @@ export function sendCommand(command: string, value?: string): { success: boolean
       forceState("IDLE");
       clearTarget();
       if (bot?.pathfinder) {
-        try {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          (bot.pathfinder as any).setGoal(null);
-        } catch { /* ignore */ }
+        try { (bot.pathfinder as unknown as { setGoal: (g: null) => void }).setGoal(null); } catch { /* ignore */ }
       }
       return { success: true, message: "Stopped" };
 
     case "attack_nearest": {
       if (!bot) return { success: false, message: "No bot" };
+      if (!store.settings.combatEnabled) return { success: false, message: "Combat disabled" };
       const hostile = findNearestHostile(bot);
       if (hostile) {
         lockTarget(hostile.id);
@@ -361,8 +436,13 @@ export function sendCommand(command: string, value?: string): { success: boolean
 
     case "toggle_autonomous":
       store.autonomousMode = !store.autonomousMode;
-      addLog("state", `Autonomous mode: ${store.autonomousMode ? "ON" : "OFF"}`);
+      addLog("state", `Autonomous: ${store.autonomousMode ? "ON" : "OFF"}`);
       return { success: true, message: `Autonomous: ${store.autonomousMode ? "ON" : "OFF"}` };
+
+    case "toggle_combat":
+      store.settings.combatEnabled = !store.settings.combatEnabled;
+      addLog("state", `Combat: ${store.settings.combatEnabled ? "ON" : "OFF"}`);
+      return { success: true, message: `Combat: ${store.settings.combatEnabled ? "ENABLED" : "DISABLED"}` };
 
     case "set_owner":
       if (value) {
