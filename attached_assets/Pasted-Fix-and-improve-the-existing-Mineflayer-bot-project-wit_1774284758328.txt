@@ -1,0 +1,172 @@
+Fix and improve the existing Mineflayer bot project with the following STRICT requirements.
+
+DO NOT ignore any point. Focus on fixing behavior, not adding random features.
+
+========================================
+🔌 CONNECTION & AUTO START FIX
+========================================
+
+- The bot must NOT auto-start when the program launches.
+- Only start when triggered manually from dashboard (Connect button).
+- Prevent duplicate bot instances.
+
+- Default connection config:
+  Host: froxsmp.enderman.cloud
+  Port: 41535
+  Username: guard
+
+- Allow changing these values from dashboard before connecting.
+
+========================================
+🎮 DASHBOARD (MAKE IT MODERN + USEFUL)
+========================================
+
+Improve dashboard UI/UX significantly:
+
+- Clean modern layout (cards/panels)
+- Add sections:
+
+1. CONNECTION PANEL
+   - Input: IP, Port, Username
+   - Buttons: Connect / Disconnect / Reconnect
+
+2. CONTROL PANEL
+   - Follow
+   - Guard
+   - Stop
+   - Attack nearest
+
+3. LIVE STATUS PANEL
+   - Health
+   - Hunger
+   - Current state
+   - Current target
+   - Ping
+
+4. SETTINGS PANEL
+   - Follow distance slider
+   - Detection radius slider
+   - Attack delay slider
+   - Toggle combat ON/OFF
+
+5. LOG PANEL
+   - Show important logs only
+
+- Make UI responsive (mobile-friendly)
+- Use colors/icons for clarity
+
+========================================
+🧍 FOLLOW SYSTEM FIX (IMPORTANT)
+========================================
+
+Fix follow behavior completely:
+
+- Bot must:
+  - Track owner continuously
+  - Maintain distance (2–4 blocks)
+  - Stop when close
+  - Move again if owner moves
+
+- Fix issues:
+  - Not following properly
+  - Getting stuck
+  - Not updating path
+
+- Add:
+  - Recalculate path if owner moves far
+  - Smooth movement (no jitter)
+
+========================================
+🦘 MOVEMENT FIX (JUMP ISSUE)
+========================================
+
+Fix jumping:
+
+- Bot must jump when:
+  - Block in front
+  - Path requires elevation
+
+- Enable proper pathfinder movement settings:
+  - Jump
+  - Parkour (basic only)
+
+- Fix:
+  - Bot stuck at 1-block height
+  - Not climbing terrain
+
+========================================
+⚔️ COMBAT + TARGETING FIX
+========================================
+
+- Fix combat reliability:
+  - Bot must attack actual target
+  - Stop attacking when target gone
+
+- Ensure:
+  - Target lock works
+  - No random switching
+  - Respect attack cooldown
+
+========================================
+👁️ DETECTION FIX
+========================================
+
+- Fix detection logic:
+  - No duplicate triggers
+  - No false positives
+
+- Only trigger combat when:
+  - Owner attacked
+  - Enemy very close
+
+========================================
+🌍 AUTONOMOUS MODE FIX
+========================================
+
+- Prevent random useless wandering
+- Keep movement controlled
+- Stop instantly when owner joins
+
+========================================
+⚡ PERFORMANCE FIX
+========================================
+
+- Remove unnecessary loops
+- Ensure only one interval per system
+- Prevent CPU spikes
+
+========================================
+🔄 STATE SYSTEM FIX
+========================================
+
+- Only one state active
+- Fix broken transitions
+- Add cooldown between state changes
+
+========================================
+📊 MONITORING FIX
+========================================
+
+- Ensure:
+  - Values update correctly
+  - No undefined errors
+  - No spam logging
+
+========================================
+🧪 FINAL CHECK
+========================================
+
+Ensure:
+- Bot connects correctly
+- Follow works smoothly
+- Jump works
+- Dashboard controls work
+- No auto-start bug
+- Stable performance
+
+========================================
+IMPORTANT RULE
+========================================
+
+Do NOT add unnecessary features.
+Fix what is broken and make everything work reliably.

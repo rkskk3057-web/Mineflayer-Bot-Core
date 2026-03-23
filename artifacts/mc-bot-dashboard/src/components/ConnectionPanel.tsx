@@ -20,10 +20,10 @@ export function ConnectionPanel() {
   const { toast } = useToast();
 
   const [form, setForm] = useState<ConnectRequest>({
-    host: "localhost",
-    port: 25565,
-    username: "AI_Bot",
-    owner: "Player1"
+    host: "froxsmp.enderman.cloud",
+    port: 41535,
+    username: "guard",
+    owner: ""
   });
 
   const handleConnect = (e: React.FormEvent) => {
