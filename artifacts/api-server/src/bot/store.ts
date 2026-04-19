@@ -1,15 +1,13 @@
 import { defaultSettings } from "./state.js";
-import type { BotSettings, BotTask, ServerConfig, BotState, CpuMode, BotPosition } from "./state.js";
+import type { BotSettings, BotTask, ServerConfig, BotState, CpuMode, BotPosition, WaypointEntry } from "./state.js";
 
 export const store = {
-  // Connection
   connected: false,
   connecting: false,
   serverHost: "",
   serverPort: 25565,
   username: "MCBot",
 
-  // Status
   state: "DISCONNECTED" as BotState,
   health: 20,
   food: 20,
@@ -20,23 +18,17 @@ export const store = {
   autonomousMode: false,
   startTime: 0,
 
-  // Position
   position: null as BotPosition | null,
-
-  // Stats
   kills: 0,
+  deaths: 0,
+  sneaking: false,
+  isSwimming: false,
 
-  // Settings
   settings: { ...defaultSettings },
-
-  // Whitelist
   whitelist: new Set<string>(),
-
-  // Tasks
   tasks: [] as BotTask[],
-
-  // Server configs
   serverConfigs: [] as ServerConfig[],
+  waypoints: [] as WaypointEntry[],
 };
 
 export function getUptime(): number {
@@ -51,8 +43,8 @@ export function getCpuMode(): CpuMode {
 export function getScanInterval(): number {
   const base = store.settings.scanInterval;
   switch (store.settings.cpuMode) {
-    case "LOW": return Math.max(base * 2, 1000);
+    case "LOW":  return Math.max(base * 2, 1000);
     case "HIGH": return Math.max(base / 2, 150);
-    default: return base;
+    default:     return base;
   }
 }

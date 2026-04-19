@@ -116,11 +116,25 @@ export function SettingsPanel() {
           </div>
         </div>
 
-        {/* Toggles */}
-        <div className="space-y-2">
-          <Toggle label="Auto-Reconnect"  sub="Recover after disconnect"  {...register("autoReconnect")} />
-          <Toggle label="Combat Enabled"  sub="Attack hostiles / defend owner" {...register("combatEnabled")} />
-          <Toggle label="Auto-Eat"        sub="Eat food when hungry"      {...register("autoEat")} />
+        {/* Toggles — Survival */}
+        <div>
+          <p className="text-[9px] font-display tracking-widest text-muted-foreground uppercase mb-2">Survival</p>
+          <div className="space-y-2">
+            <Toggle label="Auto-Reconnect"  sub="Recover after disconnect"       {...register("autoReconnect")} />
+            <Toggle label="Combat Enabled"  sub="Attack hostiles / defend owner" {...register("combatEnabled")} />
+            <Toggle label="Auto-Eat"        sub="Eat food when hungry"           {...register("autoEat")} />
+          </div>
+        </div>
+
+        {/* Toggles — Tactics */}
+        <div>
+          <p className="text-[9px] font-display tracking-widest text-muted-foreground uppercase mb-2">Tactics</p>
+          <div className="space-y-2">
+            <Toggle label="Critical Hits"   sub="Jump before attacking (+50% dmg)" {...register("criticalHits")} />
+            <Toggle label="Loot Pickup"     sub="Auto-collect nearby item drops"   {...register("lootPickup")} />
+            <Toggle label="Anti-AFK"        sub="Random idle movements to stay active" {...register("antiAfk")} />
+            <Toggle label="Sneak Follow"    sub="Sneak when following owner"        {...register("sneakFollow")} />
+          </div>
         </div>
 
         <GameButton type="submit" className="w-full" disabled={isPending}>

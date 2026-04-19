@@ -8,6 +8,8 @@ import { TerminalLog } from "@/components/TerminalLog";
 import { WhitelistPanel } from "@/components/WhitelistPanel";
 import { ChatPanel } from "@/components/ChatPanel";
 import { InventoryPanel } from "@/components/InventoryPanel";
+import { ClonePanel } from "@/components/ClonePanel";
+import { WaypointPanel } from "@/components/WaypointPanel";
 import { Cpu } from "lucide-react";
 
 export default function Dashboard() {
@@ -23,7 +25,7 @@ export default function Dashboard() {
         <div className="absolute inset-0 bg-[linear-gradient(rgba(0,255,0,0.015)_1px,transparent_1px),linear-gradient(90deg,rgba(0,255,0,0.015)_1px,transparent_1px)] bg-[size:40px_40px]" />
       </div>
 
-      <div className="relative z-10 px-4 pt-4 pb-6 md:px-6 lg:px-8 max-w-[1600px] mx-auto space-y-5">
+      <div className="relative z-10 px-4 pt-4 pb-6 md:px-6 lg:px-8 max-w-[1800px] mx-auto space-y-5">
 
         {/* ── Header ─────────────────────────────────────────────────────── */}
         <header className="flex items-center justify-between border-b border-primary/15 pb-4">
@@ -42,7 +44,7 @@ export default function Dashboard() {
                 Aegis <span className="text-primary">Core</span>
               </h1>
               <p className="text-[10px] text-primary/60 font-mono tracking-widest mt-0.5">
-                Autonomous Entity Management System
+                Autonomous Entity Management System v2
               </p>
             </div>
           </div>
@@ -57,18 +59,20 @@ export default function Dashboard() {
         {/* ── Main grid ──────────────────────────────────────────────────── */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
 
-          {/* Left column — Connection, Whitelist, Inventory */}
+          {/* Left column — Connection, Whitelist, Clone Network, Inventory */}
           <div className="lg:col-span-3 space-y-4">
             <ConnectionPanel />
+            <ClonePanel />
             <WhitelistPanel />
             <InventoryPanel />
           </div>
 
-          {/* Center column — Status HUD, Controls, Chat, Tasks */}
+          {/* Center column — Status HUD, Controls, Chat, Waypoints, Tasks */}
           <div className="lg:col-span-5 space-y-4">
             <StatusPanel />
             <ControlPanel />
             <ChatPanel />
+            <WaypointPanel />
             <TaskQueuePanel />
           </div>
 

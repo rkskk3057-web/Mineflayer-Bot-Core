@@ -6,4 +6,6 @@
  * OpenAPI spec version: 0.2.0
  */
 
-export type BotTaskParams = { [key: string]: unknown };
+export interface ChatRequest {
+  message: string;
+}

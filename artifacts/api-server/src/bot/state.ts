@@ -1,18 +1,22 @@
-export type BotState = "IDLE" | "FOLLOW" | "GUARD" | "COMBAT" | "AUTONOMOUS" | "DISCONNECTED";
+export type BotState = "IDLE" | "FOLLOW" | "GUARD" | "COMBAT" | "AUTONOMOUS" | "PATROL" | "DISCONNECTED";
 export type CpuMode = "LOW" | "NORMAL" | "HIGH";
 
 export interface BotSettings {
   followDistance: number;
   detectionRadius: number;
-  aggressionLevel: number; // 0-10
-  attackDelay: number; // ms
-  scanInterval: number; // ms
+  aggressionLevel: number;
+  attackDelay: number;
+  scanInterval: number;
   cpuMode: CpuMode;
   autoReconnect: boolean;
-  reconnectDelay: number; // ms
+  reconnectDelay: number;
   owner: string;
   combatEnabled: boolean;
   autoEat: boolean;
+  antiAfk: boolean;
+  lootPickup: boolean;
+  criticalHits: boolean;
+  sneakFollow: boolean;
 }
 
 export interface LogEntry {
@@ -24,7 +28,7 @@ export interface LogEntry {
 
 export interface BotTask {
   id: string;
-  type: "follow" | "guard_area" | "move_to";
+  type: "follow" | "guard_area" | "move_to" | "patrol";
   status: "pending" | "active" | "paused" | "done";
   params: Record<string, unknown>;
 }
@@ -44,6 +48,25 @@ export interface BotPosition {
   z: number;
 }
 
+export interface WaypointEntry {
+  id: string;
+  label: string;
+  x: number;
+  y: number;
+  z: number;
+}
+
+export interface CloneBot {
+  id: string;
+  username: string;
+  status: "connecting" | "online" | "offline" | "error";
+  health: number;
+  food: number;
+  state: string;
+  host: string;
+  port: number;
+}
+
 export interface BotStatusData {
   connected: boolean;
   state: BotState;
@@ -61,7 +84,11 @@ export interface BotStatusData {
   uptime: number;
   position: BotPosition | null;
   kills: number;
+  deaths: number;
   combatEnabled: boolean;
+  sneaking: boolean;
+  isSwimming: boolean;
+  cloneCount: number;
 }
 
 export const defaultSettings: BotSettings = {
@@ -76,4 +103,8 @@ export const defaultSettings: BotSettings = {
   owner: "",
   combatEnabled: true,
   autoEat: true,
+  antiAfk: true,
+  lootPickup: true,
+  criticalHits: true,
+  sneakFollow: false,
 };

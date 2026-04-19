@@ -1,8 +1,8 @@
 openapi: 3.1.0
 info:
   title: Api
-  version: 0.1.0
-  description: Minecraft Bot API
+  version: 0.2.0
+  description: Minecraft Bot API — Aegis Core
 servers:
   - url: /api
     description: Base API path
@@ -17,6 +17,10 @@ tags:
     description: Task queue
   - name: servers
     description: Server config management
+  - name: clones
+    description: Clone bot management
+  - name: waypoints
+    description: Patrol waypoints
 paths:
   /healthz:
     get:
@@ -125,6 +129,38 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/LogsResponse"
+
+  /bot/chat:
+    post:
+      operationId: sendBotChat
+      tags: [bot]
+      summary: Send chat message in-game
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ChatRequest"
+      responses:
+        "200":
+          description: Sent
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ActionResponse"
+
+  /bot/inventory:
+    get:
+      operationId: getBotInventory
+      tags: [bot]
+      summary: Get bot inventory
+      responses:
+        "200":
+          description: Inventory
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InventoryResponse"
 
   /settings:
     get:
@@ -316,6 +352,130 @@ paths:
               schema:
                 $ref: "#/components/schemas/ActionResponse"
 
+  /clones:
+    get:
+      operationId: getClones
+      tags: [clones]
+      summary: Get active clone bots
+      responses:
+        "200":
+          description: Clones
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ClonesResponse"
+    post:
+      operationId: spawnClone
+      tags: [clones]
+      summary: Spawn a new clone bot
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SpawnCloneRequest"
+      responses:
+        "200":
+          description: Clone spawned
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ActionResponse"
+
+  /clones/all:
+    delete:
+      operationId: killAllClones
+      tags: [clones]
+      summary: Kill all clone bots
+      responses:
+        "200":
+          description: All clones terminated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ActionResponse"
+
+  /clones/{id}:
+    delete:
+      operationId: killClone
+      tags: [clones]
+      summary: Kill a specific clone bot
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Clone terminated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ActionResponse"
+
+  /waypoints:
+    get:
+      operationId: getWaypoints
+      tags: [waypoints]
+      summary: Get patrol waypoints
+      responses:
+        "200":
+          description: Waypoints
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WaypointsResponse"
+    post:
+      operationId: addWaypoint
+      tags: [waypoints]
+      summary: Add a patrol waypoint
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AddWaypointRequest"
+      responses:
+        "200":
+          description: Waypoint added
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ActionResponse"
+
+  /waypoints/all:
+    delete:
+      operationId: clearWaypoints
+      tags: [waypoints]
+      summary: Clear all waypoints
+      responses:
+        "200":
+          description: Cleared
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ActionResponse"
+
+  /waypoints/{id}:
+    delete:
+      operationId: removeWaypoint
+      tags: [waypoints]
+      summary: Remove a waypoint
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Removed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ActionResponse"
+
 components:
   schemas:
     HealthStatus:
@@ -340,7 +500,7 @@ components:
           type: boolean
         state:
           type: string
-          enum: [IDLE, FOLLOW, GUARD, COMBAT, AUTONOMOUS, DISCONNECTED]
+          enum: [IDLE, FOLLOW, GUARD, COMBAT, AUTONOMOUS, PATROL, DISCONNECTED]
         health:
           type: number
         food:
@@ -372,8 +532,16 @@ components:
           nullable: true
         kills:
           type: integer
+        deaths:
+          type: integer
         combatEnabled:
           type: boolean
+        sneaking:
+          type: boolean
+        isSwimming:
+          type: boolean
+        cloneCount:
+          type: integer
       required:
         - connected
         - state
@@ -390,7 +558,11 @@ components:
         - autonomousMode
         - uptime
         - kills
+        - deaths
         - combatEnabled
+        - sneaking
+        - isSwimming
+        - cloneCount
 
     ConnectRequest:
       type: object
@@ -413,16 +585,53 @@ components:
           enum:
             - follow
             - guard
+            - patrol
             - stop
+            - sneak
             - attack_nearest
             - toggle_autonomous
             - toggle_combat
             - set_owner
             - check_owner
+            - equip_weapon
+            - equip_armor
         value:
           type: string
           nullable: true
       required: [command]
+
+    ChatRequest:
+      type: object
+      properties:
+        message:
+          type: string
+      required: [message]
+
+    InventoryItem:
+      type: object
+      properties:
+        name: { type: string }
+        displayName: { type: string }
+        count: { type: integer }
+        slot: { type: integer }
+        durability: { type: integer }
+        equippedAs:
+          type: string
+          nullable: true
+      required: [name, displayName, count, slot]
+
+    InventoryResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/InventoryItem"
+        equipped:
+          type: array
+          items:
+            $ref: "#/components/schemas/InventoryItem"
+      required: [items]
 
     BotSettings:
       type: object
@@ -450,6 +659,14 @@ components:
           type: boolean
         autoEat:
           type: boolean
+        antiAfk:
+          type: boolean
+        lootPickup:
+          type: boolean
+        criticalHits:
+          type: boolean
+        sneakFollow:
+          type: boolean
       required:
         - followDistance
         - detectionRadius
@@ -462,6 +679,10 @@ components:
         - owner
         - combatEnabled
         - autoEat
+        - antiAfk
+        - lootPickup
+        - criticalHits
+        - sneakFollow
 
     ActionResponse:
       type: object
@@ -518,7 +739,7 @@ components:
           type: string
         type:
           type: string
-          enum: [follow, guard_area, move_to]
+          enum: [follow, guard_area, move_to, patrol]
         status:
           type: string
           enum: [pending, active, paused, done]
@@ -532,7 +753,7 @@ components:
       properties:
         type:
           type: string
-          enum: [follow, guard_area, move_to]
+          enum: [follow, guard_area, move_to, patrol]
         params:
           type: object
           additionalProperties: true
@@ -572,3 +793,68 @@ components:
           items:
             $ref: "#/components/schemas/ServerConfig"
       required: [configs]
+
+    CloneBot:
+      type: object
+      properties:
+        id:
+          type: string
+        username:
+          type: string
+        status:
+          type: string
+          enum: [connecting, online, offline, error]
+        health:
+          type: number
+        food:
+          type: number
+        state:
+          type: string
+        host:
+          type: string
+        port:
+          type: integer
+      required: [id, username, status, health, food, state, host, port]
+
+    ClonesResponse:
+      type: object
+      properties:
+        clones:
+          type: array
+          items:
+            $ref: "#/components/schemas/CloneBot"
+      required: [clones]
+
+    SpawnCloneRequest:
+      type: object
+      properties:
+        username:
+          type: string
+
+    WaypointEntry:
+      type: object
+      properties:
+        id: { type: string }
+        label: { type: string }
+        x: { type: number }
+        y: { type: number }
+        z: { type: number }
+      required: [id, label, x, y, z]
+
+    WaypointsResponse:
+      type: object
+      properties:
+        waypoints:
+          type: array
+          items:
+            $ref: "#/components/schemas/WaypointEntry"
+      required: [waypoints]
+
+    AddWaypointRequest:
+      type: object
+      properties:
+        label: { type: string }
+        x: { type: number }
+        y: { type: number }
+        z: { type: number }
+      required: [x, y, z]

@@ -5,5 +5,8 @@
  * Minecraft Bot API — Aegis Core
  * OpenAPI spec version: 0.2.0
  */
+import type { WaypointEntry } from "./waypointEntry";
 
-export type BotTaskParams = { [key: string]: unknown };
+export interface WaypointsResponse {
+  waypoints: WaypointEntry[];
+}

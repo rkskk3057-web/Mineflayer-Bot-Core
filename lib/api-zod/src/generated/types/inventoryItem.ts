@@ -6,11 +6,11 @@
  * OpenAPI spec version: 0.2.0
  */
 
-export interface ServerConfig {
-  id?: string;
+export interface InventoryItem {
   name: string;
-  host: string;
-  port: number;
-  username: string;
-  owner: string;
+  displayName: string;
+  count: number;
+  slot: number;
+  durability?: number;
+  equippedAs?: string | null;
 }

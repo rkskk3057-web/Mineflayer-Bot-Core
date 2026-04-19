@@ -6,4 +6,9 @@
  * OpenAPI spec version: 0.2.0
  */
 
-export type BotTaskParams = { [key: string]: unknown };
+export interface AddWaypointRequest {
+  label?: string;
+  x: number;
+  y: number;
+  z: number;
+}

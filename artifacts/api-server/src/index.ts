@@ -2,7 +2,7 @@ import http from "http";
 import { Server as IOServer } from "socket.io";
 import app from "./app.js";
 import { logger } from "./lib/logger.js";
-import { setSocketIO } from "./bot/index.js";
+import { setSocketIO } from "./socket.js";
 
 const rawPort = process.env["PORT"];
 
@@ -30,7 +30,6 @@ setSocketIO(io);
 
 io.on("connection", (socket) => {
   logger.info({ socketId: socket.id }, "Dashboard client connected");
-
   socket.on("disconnect", () => {
     logger.info({ socketId: socket.id }, "Dashboard client disconnected");
   });

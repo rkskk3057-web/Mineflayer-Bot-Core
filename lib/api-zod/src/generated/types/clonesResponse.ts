@@ -5,5 +5,8 @@
  * Minecraft Bot API — Aegis Core
  * OpenAPI spec version: 0.2.0
  */
+import type { CloneBot } from "./cloneBot";
 
-export type BotTaskParams = { [key: string]: unknown };
+export interface ClonesResponse {
+  clones: CloneBot[];
+}

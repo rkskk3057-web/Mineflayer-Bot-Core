@@ -10,14 +10,21 @@ import {
   lockTarget,
 } from "./combat.js";
 import { getNextPendingTask, pauseAllTasks, resumeTasks, setTaskActive } from "./tasks.js";
+import {
+  tickAntiAfk,
+  tickLootPickup,
+  tickStuckDetection,
+  attackWithCrit,
+  getPatrolIndex,
+  nextPatrolIndex,
+} from "./abilities.js";
 
 let scanTimer: NodeJS.Timeout | null = null;
 let stuckTimer: NodeJS.Timeout | null = null;
 
-let lastBotPos: { x: number; z: number } | null = null;
 let lastOwnerPos: { x: number; y: number; z: number } | null = null;
+let lastBotPos: { x: number; z: number } | null = null;
 let stuckCount = 0;
-
 let lastStateChangeTime = 0;
 const STATE_CHANGE_COOLDOWN_MS = 700;
 
@@ -75,7 +82,6 @@ export function changeState(newState: typeof store.state): boolean {
 
 // ── Owner helpers ─────────────────────────────────────────────────────────────
 
-/** Find the owner's player entry with case-insensitive matching */
 function findOwnerEntry(bot: Bot) {
   const owner = store.settings.owner;
   if (!owner) return null;
@@ -84,7 +90,6 @@ function findOwnerEntry(bot: Bot) {
   return key ? bot.players[key] : null;
 }
 
-/** Check if owner is online and update store */
 function syncOwnerOnline(bot: Bot): void {
   const entry = findOwnerEntry(bot);
   store.ownerOnline = entry !== null;
@@ -120,11 +125,12 @@ function scheduleNextScan(bot: Bot): void {
 function runAITick(bot: Bot): void {
   if (!store.connected || store.state === "DISCONNECTED") return;
 
-  // Sync owner status every tick (cheapest reliable fix)
   syncOwnerOnline(bot);
-
-  // Count nearby players
   store.nearbyPlayers = countNearbyPlayers(bot);
+
+  // Ability sub-ticks (all no-ops if disabled)
+  tickAntiAfk(bot);
+  tickLootPickup(bot);
 
   switch (store.state) {
     case "IDLE":       handleIdle(bot); break;
@@ -132,6 +138,7 @@ function runAITick(bot: Bot): void {
     case "GUARD":      handleGuard(bot); break;
     case "COMBAT":     handleCombat(bot); break;
     case "AUTONOMOUS": handleAutonomous(bot); break;
+    case "PATROL":     handlePatrol(bot); break;
   }
 }
 
@@ -140,11 +147,6 @@ function runAITick(bot: Bot): void {
 function handleIdle(bot: Bot): void {
   const task = getNextPendingTask();
   if (task) { executeTask(bot, task.id, task.type, task.params); return; }
-
-  // Auto-follow if owner is online and aggression warrants it
-  if (store.ownerOnline && store.settings.aggressionLevel >= 0) {
-    // No-op — idle stays idle until user issues follow command
-  }
 
   if (!store.settings.combatEnabled) return;
   if (store.settings.aggressionLevel > 4 && canChangeState()) {
@@ -167,15 +169,14 @@ function handleFollow(bot: Bot): void {
 
   const ownerEntry = findOwnerEntry(bot);
   if (!ownerEntry?.entity) {
-    // Owner not visible — wait; switch to autonomous if mode enabled
     if (store.autonomousMode && canChangeState()) {
       changeState("AUTONOMOUS");
-      addLog("state", "Owner not visible — switching to AUTONOMOUS");
+      addLog("state", "Owner not visible — AUTONOMOUS");
     }
     return;
   }
 
-  // Defend owner from hostiles (when aggression is high)
+  // Defend owner
   if (store.settings.combatEnabled && store.settings.aggressionLevel > 5 && canChangeState()) {
     const now = Date.now();
     if (now - lastCombatTriggerTime > COMBAT_TRIGGER_COOLDOWN_MS) {
@@ -192,22 +193,17 @@ function handleFollow(bot: Bot): void {
     }
   }
 
-  // ── Follow movement ──────────────────────────────────────────────────────
-  // Only update pathfinder goal when owner has moved more than 1.5 blocks
-  // This prevents jitter from re-issuing goals every single tick
   const ownerPos = ownerEntry.entity.position;
   const pf = getPF();
   if (pf && bot.pathfinder && ownerEntry.entity) {
     const ownerMoved = !lastOwnerPos || ownerPos.distanceTo(lastOwnerPos) > 1.5;
     if (ownerMoved) {
       lastOwnerPos = { x: ownerPos.x, y: ownerPos.y, z: ownerPos.z };
-      // GoalFollow dynamically tracks the entity — the pathfinder recalculates
-      // continuously, so we don't need to call setGoal on every tick
       const goal = new (pf.goals.GoalFollow as unknown as new (e: unknown, d: number) => unknown)(
         ownerEntry.entity,
         store.settings.followDistance,
       );
-      setGoal(bot, goal, true); // dynamic=true: pathfinder replans as entity moves
+      setGoal(bot, goal, true);
     }
   }
 }
@@ -238,7 +234,7 @@ function handleGuard(bot: Bot): void {
       lockTarget(untrusted.id);
       store.currentTarget = untrusted.name;
       changeState("COMBAT");
-      addLog("combat", `Guard: untrusted player: ${untrusted.name}`);
+      addLog("combat", `Guard: hostile player: ${untrusted.name}`);
       pauseAllTasks();
     }
   }
@@ -252,7 +248,7 @@ function handleCombat(bot: Bot): void {
     store.currentTarget = null;
     resumeTasks();
     stopMovement(bot);
-    addLog("combat", "Target eliminated — returning to IDLE");
+    addLog("combat", "Target eliminated — IDLE");
     return;
   }
   if (!store.settings.combatEnabled) {
@@ -261,45 +257,42 @@ function handleCombat(bot: Bot): void {
     store.currentTarget = null;
     return;
   }
-  attackTarget(bot);
+  attackTarget(bot, attackWithCrit);
 }
 
 // ── AUTONOMOUS ────────────────────────────────────────────────────────────────
 
 function handleAutonomous(bot: Bot): void {
-  // Switch back to FOLLOW the moment the owner is online
   if (store.ownerOnline) {
     stopMovement(bot);
     changeState("FOLLOW");
-    addLog("state", "Owner online — switching to FOLLOW");
+    addLog("state", "Owner online — FOLLOW");
     return;
   }
 
-  // Flee from hostiles
-  const hostile = findNearestHostile(bot);
-  if (hostile && bot.entity) {
-    const entity = bot.entities[hostile.id];
-    if (entity?.position) {
-      const pf = getPF();
-      if (pf && bot.pathfinder) {
-        try {
-          const flee = new (pf.goals.GoalInvert as unknown as new (g: unknown) => unknown)(
-            new (pf.goals.GoalNear as unknown as new (x: number, y: number, z: number, r: number) => unknown)(
-              entity.position.x, entity.position.y, entity.position.z, 10
-            )
-          );
-          setGoal(bot, flee, true);
-        } catch { /* ignore */ }
+  // Fight back if attacked (always, regardless of aggressionLevel in auto mode)
+  if (store.settings.combatEnabled) {
+    const now = Date.now();
+    if (now - lastCombatTriggerTime > COMBAT_TRIGGER_COOLDOWN_MS) {
+      const hostile = findNearestHostile(bot);
+      if (hostile && bot.entity) {
+        const entity = bot.entities[hostile.id];
+        if (entity?.position && bot.entity.position.distanceTo(entity.position) < 5) {
+          lastCombatTriggerTime = now;
+          lockTarget(hostile.id);
+          store.currentTarget = hostile.name;
+          changeState("COMBAT");
+          return;
+        }
       }
     }
-    return;
   }
 
-  // Gentle occasional wander (2% per tick)
-  if (Math.random() < 0.02 && bot.entity) {
+  // Gentle wander
+  if (Math.random() < 0.015 && bot.entity) {
     const pos = bot.entity.position;
-    const dx = (Math.random() - 0.5) * 8;
-    const dz = (Math.random() - 0.5) * 8;
+    const dx = (Math.random() - 0.5) * 12;
+    const dz = (Math.random() - 0.5) * 12;
     const pf = getPF();
     if (pf && bot.pathfinder) {
       try {
@@ -307,6 +300,61 @@ function handleAutonomous(bot: Bot): void {
           Math.round(pos.x + dx), Math.round(pos.z + dz)
         );
         setGoal(bot, wander, false);
+      } catch { /* ignore */ }
+    }
+  }
+}
+
+// ── PATROL ────────────────────────────────────────────────────────────────────
+
+function handlePatrol(bot: Bot): void {
+  if (store.waypoints.length === 0) {
+    changeState("GUARD");
+    return;
+  }
+
+  // Switch back to FOLLOW when owner comes online
+  if (store.ownerOnline) {
+    changeState("FOLLOW");
+    addLog("state", "Owner online — switching PATROL → FOLLOW");
+    return;
+  }
+
+  // Engage hostiles during patrol
+  if (store.settings.combatEnabled && canChangeState()) {
+    const now = Date.now();
+    if (now - lastCombatTriggerTime > COMBAT_TRIGGER_COOLDOWN_MS) {
+      const hostile = findNearestHostile(bot);
+      if (hostile) {
+        lastCombatTriggerTime = now;
+        lockTarget(hostile.id);
+        store.currentTarget = hostile.name;
+        changeState("COMBAT");
+        addLog("combat", `Patrol: engaging ${hostile.name}`);
+        return;
+      }
+    }
+  }
+
+  const idx = getPatrolIndex();
+  const waypoint = store.waypoints[idx];
+  if (!waypoint || !bot.entity?.position) return;
+
+  const dist = bot.entity.position.distanceTo({ x: waypoint.x, y: waypoint.y, z: waypoint.z });
+
+  if (dist < 2) {
+    // Reached waypoint, move to next
+    nextPatrolIndex(store.waypoints.length);
+    addLog("info", `Patrol: reached ${waypoint.label} → next waypoint`);
+  } else {
+    // Navigate to waypoint
+    const pf = getPF();
+    if (pf && bot.pathfinder) {
+      try {
+        const goal = new (pf.goals.GoalBlock as unknown as new (x: number, y: number, z: number) => unknown)(
+          Math.round(waypoint.x), Math.round(waypoint.y), Math.round(waypoint.z)
+        );
+        setGoal(bot, goal, false);
       } catch { /* ignore */ }
     }
   }
@@ -326,6 +374,9 @@ function executeTask(bot: Bot, taskId: string, type: string, params: Record<stri
     }
     case "guard_area":
       changeState("GUARD");
+      break;
+    case "patrol":
+      if (store.waypoints.length > 0) changeState("PATROL");
       break;
     case "move_to": {
       const x = Number(params.x ?? 0);
@@ -362,7 +413,7 @@ function countNearbyPlayers(bot: Bot): number {
 function startStuckDetection(bot: Bot): void {
   stuckTimer = setInterval(() => {
     if (!store.connected || !bot.entity) return;
-    if (store.state !== "FOLLOW" && store.state !== "AUTONOMOUS" && store.state !== "COMBAT") {
+    if (store.state !== "FOLLOW" && store.state !== "AUTONOMOUS" && store.state !== "COMBAT" && store.state !== "PATROL") {
       stuckCount = 0;
       return;
     }
@@ -373,9 +424,14 @@ function startStuckDetection(bot: Bot): void {
         stuckCount++;
         if (stuckCount >= 3) {
           stopMovement(bot);
-          lastOwnerPos = null; // force path recalculation
+          lastOwnerPos = null;
           stuckCount = 0;
-          addLog("warn", "Stuck detected — pathfinder reset");
+          // Try a jump to dislodge
+          try {
+            bot.setControlState("jump", true);
+            setTimeout(() => bot.setControlState("jump", false), 300);
+          } catch { /* ignore */ }
+          addLog("warn", "Stuck — pathfinder reset + jump dislodge");
         }
       } else {
         stuckCount = 0;
