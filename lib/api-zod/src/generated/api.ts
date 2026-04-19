@@ -39,6 +39,15 @@ export const GetBotStatusResponse = zod.object({
   cpuMode: zod.enum(["LOW", "NORMAL", "HIGH"]),
   autonomousMode: zod.boolean(),
   uptime: zod.number(),
+  position: zod
+    .object({
+      x: zod.number(),
+      y: zod.number(),
+      z: zod.number(),
+    })
+    .nullish(),
+  kills: zod.number(),
+  combatEnabled: zod.boolean(),
 });
 
 /**
@@ -82,7 +91,9 @@ export const SendBotCommandBody = zod.object({
     "stop",
     "attack_nearest",
     "toggle_autonomous",
+    "toggle_combat",
     "set_owner",
+    "check_owner",
   ]),
   value: zod.string().nullish(),
 });
@@ -130,6 +141,8 @@ export const GetSettingsResponse = zod.object({
   autoReconnect: zod.boolean(),
   reconnectDelay: zod.number(),
   owner: zod.string(),
+  combatEnabled: zod.boolean(),
+  autoEat: zod.boolean(),
 });
 
 /**
@@ -145,6 +158,8 @@ export const UpdateSettingsBody = zod.object({
   autoReconnect: zod.boolean(),
   reconnectDelay: zod.number(),
   owner: zod.string(),
+  combatEnabled: zod.boolean(),
+  autoEat: zod.boolean(),
 });
 
 export const UpdateSettingsResponse = zod.object({
@@ -157,6 +172,8 @@ export const UpdateSettingsResponse = zod.object({
   autoReconnect: zod.boolean(),
   reconnectDelay: zod.number(),
   owner: zod.string(),
+  combatEnabled: zod.boolean(),
+  autoEat: zod.boolean(),
 });
 
 /**

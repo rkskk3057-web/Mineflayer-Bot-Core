@@ -15,5 +15,7 @@ export const CommandRequestCommand = {
   stop: "stop",
   attack_nearest: "attack_nearest",
   toggle_autonomous: "toggle_autonomous",
+  toggle_combat: "toggle_combat",
   set_owner: "set_owner",
+  check_owner: "check_owner",
 } as const;

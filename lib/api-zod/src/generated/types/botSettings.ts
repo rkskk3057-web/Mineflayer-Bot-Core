@@ -17,4 +17,6 @@ export interface BotSettings {
   autoReconnect: boolean;
   reconnectDelay: number;
   owner: string;
+  combatEnabled: boolean;
+  autoEat: boolean;
 }

@@ -7,6 +7,7 @@
  */
 
 export * from "./actionResponse";
+export * from "./botPosition";
 export * from "./botSettings";
 export * from "./botSettingsCpuMode";
 export * from "./botStatus";

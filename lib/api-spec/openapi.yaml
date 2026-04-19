@@ -325,6 +325,14 @@ components:
           type: string
       required: [status]
 
+    BotPosition:
+      type: object
+      properties:
+        x: { type: number }
+        y: { type: number }
+        z: { type: number }
+      required: [x, y, z]
+
     BotStatus:
       type: object
       properties:
@@ -359,6 +367,13 @@ components:
           type: boolean
         uptime:
           type: integer
+        position:
+          $ref: "#/components/schemas/BotPosition"
+          nullable: true
+        kills:
+          type: integer
+        combatEnabled:
+          type: boolean
       required:
         - connected
         - state
@@ -374,6 +389,8 @@ components:
         - cpuMode
         - autonomousMode
         - uptime
+        - kills
+        - combatEnabled
 
     ConnectRequest:
       type: object
@@ -399,7 +416,9 @@ components:
             - stop
             - attack_nearest
             - toggle_autonomous
+            - toggle_combat
             - set_owner
+            - check_owner
         value:
           type: string
           nullable: true
@@ -427,6 +446,10 @@ components:
           type: integer
         owner:
           type: string
+        combatEnabled:
+          type: boolean
+        autoEat:
+          type: boolean
       required:
         - followDistance
         - detectionRadius
@@ -437,6 +460,8 @@ components:
         - autoReconnect
         - reconnectDelay
         - owner
+        - combatEnabled
+        - autoEat
 
     ActionResponse:
       type: object

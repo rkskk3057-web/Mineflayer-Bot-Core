@@ -5,6 +5,7 @@
  * Minecraft Bot API
  * OpenAPI spec version: 0.1.0
  */
+import type { BotPosition } from "./botPosition";
 import type { BotStatusCpuMode } from "./botStatusCpuMode";
 import type { BotStatusState } from "./botStatusState";
 
@@ -23,4 +24,7 @@ export interface BotStatus {
   cpuMode: BotStatusCpuMode;
   autonomousMode: boolean;
   uptime: number;
+  position?: BotPosition | null;
+  kills: number;
+  combatEnabled: boolean;
 }

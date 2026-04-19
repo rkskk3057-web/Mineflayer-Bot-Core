@@ -9,6 +9,12 @@ export interface HealthStatus {
   status: string;
 }
 
+export interface BotPosition {
+  x: number;
+  y: number;
+  z: number;
+}
+
 export type BotStatusState =
   (typeof BotStatusState)[keyof typeof BotStatusState];
 
@@ -45,6 +51,9 @@ export interface BotStatus {
   cpuMode: BotStatusCpuMode;
   autonomousMode: boolean;
   uptime: number;
+  position?: BotPosition | null;
+  kills: number;
+  combatEnabled: boolean;
 }
 
 export interface ConnectRequest {
@@ -63,7 +72,9 @@ export const CommandRequestCommand = {
   stop: "stop",
   attack_nearest: "attack_nearest",
   toggle_autonomous: "toggle_autonomous",
+  toggle_combat: "toggle_combat",
   set_owner: "set_owner",
+  check_owner: "check_owner",
 } as const;
 
 export interface CommandRequest {
@@ -90,6 +101,8 @@ export interface BotSettings {
   autoReconnect: boolean;
   reconnectDelay: number;
   owner: string;
+  combatEnabled: boolean;
+  autoEat: boolean;
 }
 
 export interface ActionResponse {
