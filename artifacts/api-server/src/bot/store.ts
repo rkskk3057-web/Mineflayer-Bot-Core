@@ -23,6 +23,9 @@ export const store = {
   deaths: 0,
   sneaking: false,
   isSwimming: false,
+  lastError: null as string | null,
+  connectAttempts: 0,
+  version: "",
 
   settings: { ...defaultSettings },
   whitelist: new Set<string>(),

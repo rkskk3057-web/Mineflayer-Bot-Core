@@ -53,6 +53,18 @@ export const GetBotStatusResponse = zod.object({
   sneaking: zod.boolean(),
   isSwimming: zod.boolean(),
   cloneCount: zod.number(),
+  lastError: zod
+    .string()
+    .nullish()
+    .describe("Most recent connection or runtime error"),
+  connectAttempts: zod
+    .number()
+    .optional()
+    .describe("Number of connection attempts in current session"),
+  version: zod
+    .string()
+    .optional()
+    .describe("Negotiated Minecraft version (empty if not connected)"),
 });
 
 /**
@@ -63,6 +75,10 @@ export const ConnectBotBody = zod.object({
   port: zod.number(),
   username: zod.string(),
   owner: zod.string(),
+  version: zod
+    .string()
+    .optional()
+    .describe("Minecraft version (e.g. 1.20.4). Empty string = auto-detect."),
 });
 
 export const ConnectBotResponse = zod.object({

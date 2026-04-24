@@ -59,6 +59,12 @@ export interface BotStatus {
   sneaking: boolean;
   isSwimming: boolean;
   cloneCount: number;
+  /** Most recent connection or runtime error */
+  lastError?: string | null;
+  /** Number of connection attempts in current session */
+  connectAttempts?: number;
+  /** Negotiated Minecraft version (empty if not connected) */
+  version?: string;
 }
 
 export interface ConnectRequest {
@@ -66,6 +72,8 @@ export interface ConnectRequest {
   port: number;
   username: string;
   owner: string;
+  /** Minecraft version (e.g. 1.20.4). Empty string = auto-detect. */
+  version?: string;
 }
 
 export type CommandRequestCommand =

@@ -11,4 +11,6 @@ export interface ConnectRequest {
   port: number;
   username: string;
   owner: string;
+  /** Minecraft version (e.g. 1.20.4). Empty string = auto-detect. */
+  version?: string;
 }

@@ -31,4 +31,10 @@ export interface BotStatus {
   sneaking: boolean;
   isSwimming: boolean;
   cloneCount: number;
+  /** Most recent connection or runtime error */
+  lastError?: string | null;
+  /** Number of connection attempts in current session */
+  connectAttempts?: number;
+  /** Negotiated Minecraft version (empty if not connected) */
+  version?: string;
 }

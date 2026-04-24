@@ -89,6 +89,9 @@ export interface BotStatusData {
   sneaking: boolean;
   isSwimming: boolean;
   cloneCount: number;
+  lastError: string | null;
+  connectAttempts: number;
+  version: string;
 }
 
 export const defaultSettings: BotSettings = {

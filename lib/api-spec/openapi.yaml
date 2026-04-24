@@ -542,6 +542,16 @@ components:
           type: boolean
         cloneCount:
           type: integer
+        lastError:
+          type: string
+          nullable: true
+          description: "Most recent connection or runtime error"
+        connectAttempts:
+          type: integer
+          description: "Number of connection attempts in current session"
+        version:
+          type: string
+          description: "Negotiated Minecraft version (empty if not connected)"
       required:
         - connected
         - state
@@ -575,6 +585,9 @@ components:
           type: string
         owner:
           type: string
+        version:
+          type: string
+          description: "Minecraft version (e.g. 1.20.4). Empty string = auto-detect."
       required: [host, port, username, owner]
 
     CommandRequest:

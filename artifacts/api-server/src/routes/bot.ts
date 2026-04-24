@@ -19,14 +19,14 @@ router.get("/bot/status", (_req, res) => {
 
 // POST /bot/connect
 router.post("/bot/connect", (req, res) => {
-  const { host, port, username, owner } = req.body as {
-    host: string; port: number; username: string; owner: string;
+  const { host, port, username, owner, version } = req.body as {
+    host: string; port: number; username: string; owner: string; version?: string;
   };
   if (!host || !username) {
     res.status(400).json({ success: false, message: "host and username are required" });
     return;
   }
-  connect(host, port || 25565, username, owner || "");
+  connect(host, port || 25565, username, owner || "", version || "");
   res.json({ success: true, message: `Connecting to ${host}:${port || 25565}` });
 });
 

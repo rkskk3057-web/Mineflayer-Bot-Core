@@ -51,8 +51,13 @@ function getBotStatusData() {
     sneaking: store.sneaking,
     isSwimming: store.isSwimming,
     cloneCount: getCloneCount(),
+    lastError: store.lastError,
+    connectAttempts: store.connectAttempts,
+    version: store.version,
   };
 }
+
+const MAX_RECONNECT_ATTEMPTS = 5;
 
 function startStatusBroadcast(): void {
   stopStatusBroadcast();
@@ -67,13 +72,29 @@ function stopStatusBroadcast(): void {
   if (positionTimer) { clearInterval(positionTimer);  positionTimer = null; }
 }
 
-export function connect(host: string, port: number, username: string, owner: string): void {
+export function connect(host: string, port: number, username: string, owner: string, version?: string): void {
   if (store.connecting || store.connected) return;
+
+  // Cancel any pending reconnect timer when a fresh connect is requested
+  if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; }
+
+  // If host/port/username/version changed, treat as a fresh session (reset attempt counter)
+  const isNewSession =
+    host !== store.serverHost ||
+    port !== store.serverPort ||
+    username !== store.username ||
+    (version ?? "") !== store.version;
+  if (isNewSession) {
+    store.connectAttempts = 0;
+    store.lastError = null;
+  }
 
   store.connecting = true;
   store.serverHost = host;
   store.serverPort = port;
   store.username = username;
+  store.version = version ?? "";
+  store.connectAttempts++;
   if (owner) store.settings.owner = owner;
 
   // Reset all tracked state
@@ -86,23 +107,54 @@ export function connect(host: string, port: number, username: string, owner: str
   lastAttackedEntityIds = new Set();
   resetAbilityTimers();
 
-  addLog("connection", `Connecting to ${host}:${port} as ${username}…`);
+  const versionLabel = version ? `v${version}` : "auto-detect";
+  addLog(
+    "connection",
+    `Connecting to ${host}:${port} as ${username} (${versionLabel}, attempt ${store.connectAttempts}/${MAX_RECONNECT_ATTEMPTS})…`,
+  );
 
   try {
-    bot = mineflayer.createBot({
+    const opts: Parameters<typeof mineflayer.createBot>[0] = {
       host,
       port,
       username,
       auth: "offline",
-      // Use false to auto-negotiate version with the server
-      // This prevents connection failures when server version differs
       hideErrors: true,
-    });
+      checkTimeoutInterval: 30_000,
+    };
+    if (version && version.trim()) {
+      opts.version = version.trim();
+    }
+    bot = mineflayer.createBot(opts);
     setupBotEvents(bot);
   } catch (err) {
+    const msg = (err as Error)?.message ?? String(err);
+    store.lastError = msg;
     store.connecting = false;
-    addLog("error", `Failed to create bot: ${String(err)}`);
+    addLog("error", `Failed to create bot: ${msg}`);
+    io.emit("bot:status", getBotStatusData());
+    scheduleReconnect();
   }
+}
+
+function scheduleReconnect(): void {
+  if (!store.settings.autoReconnect || !store.serverHost) return;
+  if (store.connectAttempts >= MAX_RECONNECT_ATTEMPTS) {
+    addLog(
+      "error",
+      `Reconnect aborted after ${MAX_RECONNECT_ATTEMPTS} failed attempts. Last error: ${store.lastError ?? "unknown"}. Use the dashboard to reconnect manually.`,
+    );
+    io.emit("bot:status", getBotStatusData());
+    return;
+  }
+  const baseDelay = store.settings.reconnectDelay || 5000;
+  // Exponential backoff: 1×, 2×, 3×, 4×, 5× — capped at 60s
+  const delay = Math.min(baseDelay * store.connectAttempts, 60_000);
+  addLog("connection", `Auto-reconnecting in ${Math.round(delay / 1000)}s (attempt ${store.connectAttempts + 1}/${MAX_RECONNECT_ATTEMPTS})…`);
+  reconnectTimer = setTimeout(() => {
+    reconnectTimer = null;
+    connect(store.serverHost, store.serverPort, store.username, store.settings.owner, store.version);
+  }, delay);
 }
 
 function setupBotEvents(b: Bot): void {
@@ -112,6 +164,9 @@ function setupBotEvents(b: Bot): void {
     store.connecting = false;
     store.state = "IDLE";
     store.startTime = Date.now();
+    store.lastError = null;
+    store.connectAttempts = 0;        // Reset on successful spawn
+    store.version = b.version ?? store.version;
 
     addLog("connection", `Connected as ${b.username} (v${b.version})`);
     io.emit("bot:connected");
@@ -323,20 +378,37 @@ function setupBotEvents(b: Bot): void {
   });
 
   b.on("kicked", (reason) => {
-    addLog("connection", `Kicked: ${String(reason)}`);
+    const reasonStr = String(reason);
+    store.lastError = `Kicked: ${reasonStr}`;
+    addLog("connection", `Kicked: ${reasonStr}`);
     handleDisconnect("kicked");
   });
 
   b.on("error", (err) => {
     const msg = err?.message ?? String(err);
-    if (!msg.includes("ECONNRESET") && !msg.includes("EPIPE") && !msg.includes("connect ECONNREFUSED")) {
-      addLog("error", `Error: ${msg}`);
+    // Translate common low-level errors into user-friendly explanations
+    let friendly = msg;
+    if (msg.includes("ECONNREFUSED")) {
+      friendly = "Server refused the connection — it may be offline, on a different port, or blocking this IP.";
+    } else if (msg.includes("ETIMEDOUT")) {
+      friendly = "Connection timed out — server is unreachable.";
+    } else if (msg.includes("ENOTFOUND") || msg.includes("EAI_AGAIN")) {
+      friendly = "Server hostname could not be resolved — check the address.";
+    } else if (msg.toLowerCase().includes("unsupported protocol") || msg.toLowerCase().includes("version")) {
+      friendly = `Version mismatch — try selecting a specific Minecraft version. (${msg})`;
     }
+    store.lastError = friendly;
+    addLog("error", friendly);
+    io.emit("bot:status", getBotStatusData());
   });
 
   b.once("end", (reason) => {
-    addLog("connection", `Connection ended: ${String(reason)}`);
-    handleDisconnect(String(reason));
+    const reasonStr = String(reason);
+    addLog("connection", `Connection ended: ${reasonStr}`);
+    if (!store.lastError) {
+      store.lastError = `Connection ended: ${reasonStr}`;
+    }
+    handleDisconnect(reasonStr);
   });
 }
 
@@ -531,13 +603,7 @@ function handleDisconnect(reason: string): void {
 
   bot = null;
 
-  if (store.settings.autoReconnect && store.serverHost) {
-    const delay = store.settings.reconnectDelay;
-    addLog("connection", `Auto-reconnecting in ${delay / 1000}s…`);
-    reconnectTimer = setTimeout(() => {
-      connect(store.serverHost, store.serverPort, store.username, store.settings.owner);
-    }, delay);
-  }
+  scheduleReconnect();
 }
 
 export function disconnect(): void {
@@ -556,17 +622,20 @@ export function disconnect(): void {
   store.state       = "DISCONNECTED";
   store.position    = null;
   store.sneaking    = false;
+  store.connectAttempts = 0;     // Reset so user can connect again immediately
+  store.lastError = null;
 
   io.emit("bot:disconnected", { reason: "manual" });
+  io.emit("bot:status", getBotStatusData());
   addLog("connection", "Disconnected manually");
 }
 
 export function reconnect(): void {
-  const { serverHost, serverPort, username } = store;
+  const { serverHost, serverPort, username, version } = store;
   const owner = store.settings.owner;
   if (!serverHost) { addLog("warn", "No server configured"); return; }
   disconnect();
-  setTimeout(() => connect(serverHost, serverPort, username, owner), 1500);
+  setTimeout(() => connect(serverHost, serverPort, username, owner, version), 1500);
 }
 
 // ── Chat / Inventory ──────────────────────────────────────────────────────────
